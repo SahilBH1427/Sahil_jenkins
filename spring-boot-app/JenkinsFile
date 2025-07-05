@@ -60,23 +60,21 @@ agent {
       }
     }
 
-    stage('Update Deployment File') {
-      environment {
-        GIT_REPO_NAME = "jenkins-manifest"
-        GIT_USER_NAME = "SahilBH1427"
-      }
-      steps {
-        withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
-          sh '''
-            git config user.email "sahil.bharne1427@gmail.com"
-            git config user.name "sahil bharne"
-            BUILD_NUMBER=${BUILD_NUMBER}
-            sed -i "s/replaceImageTag/${BUILD_NUMBER}/g spring-boot-app-manifests/deployment.yml
-            git add spring-boot-app-manifests/deployment.yml
-            git commit -m "Update deployment image to version ${BUILD_NUMBER}"
-            git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
-          '''
-        }
+stage('Update Deployment File') {
+  steps {
+    withEnv(["PATH+GIT=${tool 'Git'}/bin"]) {
+      withCredentials([usernamePassword(credentialsId: 'docker-cred', usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_PASSWORD')]) {
+        sh '''
+          rm -rf repo || true
+          git clone https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/SahilBH1427/Sahil_jenkins.git repo
+          cd repo
+          git config user.email "sahil.bharne1427@gmail.com"
+          git config user.name "Sahil Bharne"
+          # modify deployment.yaml or any needed files
+          git add .
+          git commit -m "Update deployment with new image tag"
+          git push origin main
+        '''
       }
     }
   }
