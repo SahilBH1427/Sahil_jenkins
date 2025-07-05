@@ -11,7 +11,6 @@ pipeline {
     stage('Checkout') {
       steps {
         sh 'echo passed'
-        // git branch: 'main', url: 'https://github.com/SahilBH1427/Sahil_jenkins'
       }
     }
 
@@ -43,7 +42,6 @@ pipeline {
     stage('Build and Push Docker Image') {
       environment {
         DOCKER_IMAGE = "sahilf5/ultimate-cicd:${BUILD_NUMBER}"
-        REGISTRY_CREDENTIALS = credentials('docker-cred')
       }
       steps {
         dir('spring-boot-app') {
@@ -71,12 +69,4 @@ pipeline {
               # modify deployment.yaml or any needed files
               git add .
               git commit -m "Update deployment with new image tag"
-              git push origin main
-            '''
-          }
-        }
-      }
-    }
-
-  } 
-} 
+              git push
