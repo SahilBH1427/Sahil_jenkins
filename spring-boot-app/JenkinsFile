@@ -7,47 +7,81 @@ pipeline {
   }
 
   environment {
-    SONAR_URL = "http://13.233.84.218:9000"
+    SONAR_URL   = 'http://13.233.84.218:9000'
     DOCKER_IMAGE = "sahilf5/ultimate-cicd:${BUILD_NUMBER}"
   }
 
   stages {
+    /* ---------- Checkout code ------------------------------------------------ */
     stage('Checkout') {
       steps {
         git branch: 'main', url: 'https://github.com/SahilBH1427/Sahil_jenkins'
       }
     }
 
+    /* ---------- Build & unit tests ------------------------------------------ */
     stage('Build and Test') {
       steps {
         dir('spring-boot-app') {
-          sh 'mvn clean package'
+          sh 'mvn -B clean package'
         }
       }
     }
 
+    /* ---------- SonarQube analysis ------------------------------------------ */
     stage('Static Code Analysis') {
       steps {
         dir('spring-boot-app') {
-          withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) {
+          withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_TOKEN')]) {
             sh '''
-              mvn sonar:sonar \
-                -Dsonar.token=$SONAR_AUTH_TOKEN \
-                -Dsonar.host.url=$SONAR_URL
+              mvn -B sonar:sonar \
+                  -Dsonar.token=$SONAR_TOKEN \
+                  -Dsonar.host.url=$SONAR_URL
             '''
           }
         }
       }
     }
 
+    /* ---------- Build & push Docker image ----------------------------------- */
     stage('Build and Push Docker Image') {
-      environment {
-        REGISTRY_CREDENTIALS = credentials('docker-cred')
-      }
       steps {
         dir('spring-boot-app') {
           script {
             sh "docker build -t ${DOCKER_IMAGE} ."
+            docker.withRegistry('https://index.docker.io/v1/', 'docker-cred') {
+              docker.image(DOCKER_IMAGE).push()
+            }
+          }
+        }
+      }
+    }
 
-            def dockerImage = docker.image("${DOCKER_IMAGE}")
-            doc
+    /* ---------- Update deployment manifest in GitHub ------------------------ */
+    stage('Update Deployment File') {
+      steps {
+        withCredentials([string(credentialsId: 'github-token-sahil', variable: 'GH_TOKEN')]) {
+          sh """
+            set -e
+            rm -rf manifest-repo || true
+            git clone https://SahilBH1427:${GH_TOKEN}@github.com/SahilBH1427/jenkins-manifest.git manifest-repo
+            cd manifest-repo
+            git config user.email 'sahil.bharne1427@gmail.com'
+            git config user.name  'Sahil Bharne'
+
+            # Replace the placeholder with the current build number
+            sed -i 's#replaceImageTag#${BUILD_NUMBER}#g' deployment.yml
+
+            git add deployment.yml
+            git commit -m 'ci: bump image tag to ${BUILD_NUMBER}'
+            git push origin main
+          """
+        }
+      }
+    }
+  }
+
+  post {
+    always { cleanWs() }
+  }
+}
